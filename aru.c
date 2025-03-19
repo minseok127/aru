@@ -74,7 +74,6 @@ struct aru_tail_version {
  * aru - main data structure to manage functions asynchronously
  * @head: point where a new node is inserted into the linked list
  * @tail: point where the oldest node is located
- * @tail_move_flag: flag that must be acquired to move the tail
  * @tail_init_flag: whether or not the tail is initialized
  *
  * Data structure used when the user calls aru_read() and aru_update(). The
@@ -88,7 +87,6 @@ struct aru_tail_version {
 struct aru {
 	struct aru_node *head;
 	struct atomsnap_gate *tail;
-	_Atomic int tail_move_flag;
 	_Atomic int tail_init_flag;
 };
 
@@ -139,7 +137,7 @@ free_tail_nodes:
 		&next_tail_version->tail_version_prev);
 
 	if (((uint64_t)prev_ptr & TAIL_VERSION_RELEASE_MASK) != 0 ||
-		!atomic_compare_exchange_waek(&next_tail_version->tail_version_prev,
+		!atomic_compare_exchange_weak(&next_tail_version->tail_version_prev,
 			&prev_ptr, NULL)) {
 		tail_version = next_tail_version;
 		goto free_tail_nodes;
@@ -208,7 +206,7 @@ static void adjust_tail(struct aru *aru,
 	struct aru_tail_version *prev_tail_version, struct aru_node *new_tail_node)
 {
 	struct aru_tail_version *new_tail_version
-		 = (struct aru_tail_version *)atomsnap_make_version(aru->tail,NULL);
+		 = (struct aru_tail_version *)atomsnap_make_version(aru->tail, NULL);
 
 	atomic_store(&new_tail_version->tail_version_prev, prev_tail_version);
 	atomic_store(&new_tail_version->tail_version_next, NULL);
@@ -216,8 +214,12 @@ static void adjust_tail(struct aru *aru,
 	new_tail_version->head_node = NULL;
 	new_tail_version->tail_node = new_tail_node;
 
-	atomsnap_exchange_version(aru->tail,
-		(struct atomsnap_version *)new_tail_version);
+	if (!atomsnap_compare_exchange_version(aru->tail,
+			(struct atomsnap_version *)prev_tail_version,
+			(struct atomsnap_version *)new_tail_version)) {
+		free(new_tail_version);
+		return;
+	}
 
 	atomic_store(&prev_tail_version->tail_version_next, new_tail_version);
 	prev_tail_version->head_node = new_tail_node->prev;
@@ -289,14 +291,13 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
  * execute_nodes_and_adjust_tail - try to execute nodes and adjust tail
  * @aru: pointer of the aru
  * @tail_version: the tail version referenced by this function
- * @tail_move_flag: if 0, we are allowed to move the tail
  * @inserted_node: pointer to the node inserted by the caller
  *
  * Traverse from the tail to the most recent node, attempting to execute
  * callback functions. Since node insertion is lock-free, the next pointer may
  * temporarily appear as null.
  *
- * If the noe was inserted before the current execution flow's inserted node,
+ * If the node was inserted before the current execution flow's inserted node,
  * its next pointer will be set soon, so wait for it. Otherwise, if the node is
  * likely the most recent one, terminate immediately.
  *
@@ -304,8 +305,7 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
  * the previous node and use it to update the tail.
  */
 static void execute_nodes_and_adjust_tail(struct aru *aru, 
-	struct aru_tail_version *tail_version, int tail_move_flag,
-	struct aru_node *inserted_node)
+	struct aru_tail_version *tail_version, struct aru_node *inserted_node)
 {
 	struct aru_node *node = tail_version->tail_node;
 	struct aru_node *prev_node = node;
@@ -342,7 +342,7 @@ static void execute_nodes_and_adjust_tail(struct aru *aru,
 		}
 	}
 
-	if (tail_move_flag == 0 && prev_node != tail_version->tail_node) {
+	if (prev_node != tail_version->tail_node) {
 		adjust_tail(aru, tail_version, prev_node);
 	}
 }
@@ -359,21 +359,6 @@ static void insert_node_and_execute(struct aru *aru, struct aru_node *node)
 {
 	struct aru_node *prev_head = NULL;
 	struct aru_tail_version *tail = NULL;
-	int fetched_tail_move_flag = 1;
-
-	/*
-	 * To move the tail in a consistent direction, the flag must be acquired
-	 * before obtaining the tail version.
-	 *
-	 * If the order is reversed, the movement of the tail by another thread may
-	 * be ignored because the obtained tail may be an old version if we don't
-	 * have the flag.
-	 */
-	if (aru->tail_move_flag == 0) {
-		fetched_tail_move_flag = atomic_fetch_or(&aru->tail_move_flag, 1);
-	}
-
-	__sync_synchronize();
 
 	node->next = NULL;
 	prev_head = atomic_exchange(&aru->head, node);
@@ -406,13 +391,9 @@ static void insert_node_and_execute(struct aru *aru, struct aru_node *node)
 
 	tail = (struct aru_tail_version *)atomsnap_acquire_version(aru->tail);
 
-	execute_nodes_and_adjust_tail(aru, tail, fetched_tail_move_flag, node);
+	execute_nodes_and_adjust_tail(aru, tail, node);
 
 	atomsnap_release_version((struct atomsnap_version *)tail);
-
-	if (fetched_tail_move_flag == 0) {
-		atomic_store(&aru->tail_move_flag, 0);
-	}
 }
 
 /*
