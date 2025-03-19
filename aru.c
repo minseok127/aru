@@ -110,13 +110,12 @@ free_tail_nodes:
 
 	next_tail_version = tail_version->tail_version_next;
 	prev_ptr = atomic_load(&next_tail_version->prev_ptr);
+
 	if ((prev_ptr & TAIL_VERSION_RELEASE_MASK) != 0) {
 		tail_version = next_tail_version;
 		goto free_tail_nodes;
-	}
-
-	if (!atomic_compare_exchange_weak(&next_tail_version->tail_version_prev,
-			&prev_ptr, NULL)) {
+	} else if (!atomic_compare_exchange_weak(
+			&next_tail_version->tail_version_prev, &prev_ptr, NULL)) {
 		tail_version = next_tail_version;
 		goto free_tail_nodes;
 	}
