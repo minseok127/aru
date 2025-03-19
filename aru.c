@@ -201,7 +201,7 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
 	struct aru_node *prev_node = node->prev;
 
 	if (node->type == ARU_NODE_TYPE_UPDATE) {
-		while (prev_node != tail_node) {
+		while (prev_node != NULL && prev_node != tail_node) {
 			if (prev_node->tag != ARU_TAG_DONE) {
 				return BREAK;
 			}
@@ -213,7 +213,7 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
 			return BREAK;
 		}
 	} else {
-		while (prev_node != tail_node) {
+		while (prev_node != NULL && prev_node != tail_node) {
 			if (prev_node->type == ARU_NODE_TYPE_UPDATE &&
 					prev_node->tag != ARU_TAG_DONE) {
 				return BREAK;
