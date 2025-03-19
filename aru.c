@@ -343,6 +343,17 @@ static void execute_nodes_and_adjust_tail(struct aru *aru,
 	}
 
 	if (prev_node != tail_version->tail_node) {
+		node = prev_node->prev;
+		while (node != tail_version->tail_node) {
+			if (node->tag != ARU_TAG_DONE) {
+				return;
+			}
+			node = node->prev;
+		}
+		if (node->tag != ARU_TAG_DONE) {
+			return;
+		}
+
 		adjust_tail(aru, tail_version, prev_node);
 	}
 }
