@@ -221,6 +221,7 @@ static void adjust_tail(struct aru *aru,
 		return;
 	}
 
+	__sync_synchronize();
 	atomic_store(&prev_tail_version->tail_version_next, new_tail_version);
 	prev_tail_version->head_node = new_tail_node->prev;
 }
