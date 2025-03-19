@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdatomic.h>
@@ -64,7 +65,7 @@ struct aru_node {
 struct aru_tail_version {
 	struct atomsnap_version version;
 	struct aru_tail_version *tail_version_prev;
-	_Atomic struct aru_tail_version *tail_version_next;
+	struct aru_tail_version *tail_version_next;
 	struct aru_node *head_node;
 	struct aru_node *tail_node;
 };
@@ -93,9 +94,10 @@ struct aru {
 
 /* atomsnap_make_version() will call this function */
 struct atomsnap_version *aru_tail_version_alloc(
-	void * __attribute__((unused)) alloc_arg)
+	void *alloc_arg __attribute__((unused)))
 {
-	struct aru_tail_version *tail_version = calloc(1, sizeof(aru_tail_version));
+	struct aru_tail_version *tail_version 
+		= calloc(1, sizeof(struct aru_tail_version));
 	return (struct atomsnap_version *)tail_version;
 }
 
@@ -107,7 +109,7 @@ void aru_tail_version_free(struct atomsnap_version *version)
 	struct aru_tail_version *next_tail_version = NULL;
 	struct aru_tail_version *prev_ptr 
 		= (struct aru_tail_version *)atomic_fetch_or(
-			tail_version->tail_version_prev, TAIL_VERSION_RELEASE_MASK);
+			&tail_version->tail_version_prev, TAIL_VERSION_RELEASE_MASK);
 	struct aru_node *node = NULL;	
 
 	/* This is not the end of linke list, so we cannot free the nodes */
@@ -127,11 +129,12 @@ free_tail_nodes:
 	}
 	free(tail_version->head_node);
 
-	next_tail_version = tail_version->tail_version_next;
+	next_tail_version
+		= (struct aru_tail_version *)tail_version->tail_version_next;
 	prev_ptr = (struct aru_tail_version *)atomic_load(
 		&next_tail_version->tail_version_prev);
 
-	if ((prev_ptr & TAIL_VERSION_RELEASE_MASK) != 0) {
+	if (((uintptr_t)prev_ptr & TAIL_VERSION_RELEASE_MASK) != 0) {
 		tail_version = next_tail_version;
 		goto free_tail_nodes;
 	} else if (!atomic_compare_exchange_weak(
@@ -176,7 +179,7 @@ void aru_destroy(struct aru *aru)
 		return;
 	}
 
-	atomsnap_destory_gate(aru->tail);
+	atomsnap_destroy_gate(aru->tail);
 	free(aru);
 }
 
@@ -200,8 +203,8 @@ static void adjust_tail(struct aru *aru,
 	struct aru_tail_version *new_tail_version
 		 = (struct aru_tail_version *)atomsnap_make_version(aru->tail,NULL);
 
-	new_tail_version->tail_version_prev = prev_tail_version;
-	new_tail_version->tail_version_next = NULL;
+	atomic_store(&new_tail_version->tail_version_prev, prev_tail_version);
+	atomic_store(&new_tail_version->tail_version_next, NULL);
 
 	new_tail_version->head_node = NULL;
 	new_tail_version->tail_node = new_tail_node;
@@ -209,7 +212,7 @@ static void adjust_tail(struct aru *aru,
 	atomsnap_exchange_version(aru->tail,
 		(struct atomsnap_version *)new_tail_version);
 
-	prev_tail_version->tail_version_next = new_tail_version;
+	atomic_store(&prev_tail_version->tail_version_next, new_tail_version);
 	prev_tail_version->head_node = new_tail_node->prev;
 }
 
@@ -393,7 +396,7 @@ static void insert_node_and_execute(struct aru *aru, struct aru_node *node)
 
 	tail = (struct aru_tail_version *)atomsnap_acquire_version(aru->tail);
 
-	execute_nodes_and_adjust_tail(aru, tail, tail_move_flag, node);
+	execute_nodes_and_adjust_tail(aru, tail, fetched_tail_move_flag, node);
 
 	atomsnap_release_version((struct atomsnap_version *)tail);
 
