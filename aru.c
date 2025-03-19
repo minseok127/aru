@@ -180,6 +180,11 @@ void aru_destroy(struct aru *aru)
 	}
 
 	atomsnap_destroy_gate(aru->tail);
+
+	if (aru->head != NULL) {
+		free(aru->head);
+	}
+
 	free(aru);
 }
 
