@@ -133,14 +133,14 @@ free_tail_nodes:
 		= (struct aru_tail_version *)tail_version->tail_version_next;
 	assert(next_tail_version != NULL);
 
+	free(tail_version);
+
 	prev_ptr = (struct aru_tail_version *)atomic_load(
 		&next_tail_version->tail_version_prev);
 
-	if (((uint64_t)prev_ptr & TAIL_VERSION_RELEASE_MASK) != 0) {
-		tail_version = next_tail_version;
-		goto free_tail_nodes;
-	} else if (!atomic_compare_exchange_weak(
-			&next_tail_version->tail_version_prev, &prev_ptr, NULL)) {
+	if (((uint64_t)prev_ptr & TAIL_VERSION_RELEASE_MASK) != 0 ||
+		!atomic_compare_exchange_waek(&next_tail_version->tail_version_prev,
+			&prev_ptr, NULL)) {
 		tail_version = next_tail_version;
 		goto free_tail_nodes;
 	}
