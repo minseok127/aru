@@ -198,9 +198,9 @@ void aru_destroy(struct aru *aru)
  * tail version will execute aru_tail_version_free().
  *
  * The reference to the old tail version is released after this function
- * returns. This ensures that the deallocation ffor this old version will not be
+ * returns. This ensures that the deallocation for this old version will not be
  * executed until at least that point. So it is safe to link the old version
- * with the newly created version.
+ * with the newly created version in here.
  */
 static void adjust_tail(struct aru *aru,
 	struct aru_tail_version *prev_tail_version, struct aru_node *new_tail_node)
