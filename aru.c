@@ -131,6 +131,8 @@ free_tail_nodes:
 
 	next_tail_version
 		= (struct aru_tail_version *)tail_version->tail_version_next;
+	assert(next_tail_version != NULL);
+
 	prev_ptr = (struct aru_tail_version *)atomic_load(
 		&next_tail_version->tail_version_prev);
 
