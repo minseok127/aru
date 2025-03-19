@@ -64,7 +64,7 @@ struct aru_node {
 struct aru_tail_version {
 	struct atomsnap_version version;
 	struct aru_tail_version *tail_version_prev;
-	struct aru_tail_version *tail_version_next;
+	struct aru_Tail_version *tail_version_next;
 	struct aru_node *head_node;
 	struct aru_node *tail_node;
 };
@@ -105,12 +105,13 @@ void aru_tail_version_free(struct atomsnap_version *version)
 {
 	struct aru_tail_version *tail_version = (struct aru_tail_version *)version;
 	struct aru_tail_version *next_tail_version = NULL;
-	uint64_t prev_ptr = atomic_fetch_or(
-		tail_version->tail_version_prev, TAIL_VERSION_RELEASE_MASK);
+	struct aru_tail_version *prev_ptr 
+		= (struct aru_tail_version *)atomic_fetch_or(
+		(uintptr_t)tail_version->tail_version_prev, TAIL_VERSION_RELEASE_MASK);
 	struct aru_node *node = NULL;	
 
 	/* This is not the end of linke list, so we cannot free the nodes */
-	if (prev_ptr != 0) {
+	if (prev_ptr != NULL) {
 		return;
 	}
 
@@ -126,8 +127,9 @@ free_tail_nodes:
 	}
 	free(tail_version->head_node);
 
-	next_tail_version = tail_version->tail_version_next;
-	prev_ptr = atomic_load(&next_tail_version->prev_ptr);
+	next_tail_version = atomic_load(&tail_version->tail_version_next);
+	prev_ptr = (struct aru_tail_version *)atomic_load(
+		&next_tail_version->tail_version_prev);
 
 	if ((prev_ptr & TAIL_VERSION_RELEASE_MASK) != 0) {
 		tail_version = next_tail_version;
@@ -419,7 +421,7 @@ void aru_update(struct aru *aru, aru_tag *tag,
 {
 	struct aru_node *node = calloc(1, sizeof(struct aru_node));
 
-	if (aru_node == NULL) {
+	if (node == NULL) {
 		fprintf(stderr, "aru_update(): aru_node allocation failed\n");
 		return;
 	}
@@ -461,7 +463,7 @@ void aru_read(struct aru *aru, aru_tag *tag,
 {
 	struct aru_node *node = calloc(1, sizeof(struct aru_node));
 
-	if (aru_node == NULL) {
+	if (node == NULL) {
 		fprintf(stderr, "aru_update(): aru_node allocation failed\n");
 		return;
 	}
