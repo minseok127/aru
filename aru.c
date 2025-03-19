@@ -64,7 +64,7 @@ struct aru_node {
 struct aru_tail_version {
 	struct atomsnap_version version;
 	struct aru_tail_version *tail_version_prev;
-	struct aru_Tail_version *tail_version_next;
+	_Atomic struct aru_tail_version *tail_version_next;
 	struct aru_node *head_node;
 	struct aru_node *tail_node;
 };
@@ -107,7 +107,7 @@ void aru_tail_version_free(struct atomsnap_version *version)
 	struct aru_tail_version *next_tail_version = NULL;
 	struct aru_tail_version *prev_ptr 
 		= (struct aru_tail_version *)atomic_fetch_or(
-		(uintptr_t)tail_version->tail_version_prev, TAIL_VERSION_RELEASE_MASK);
+			tail_version->tail_version_prev, TAIL_VERSION_RELEASE_MASK);
 	struct aru_node *node = NULL;	
 
 	/* This is not the end of linke list, so we cannot free the nodes */
