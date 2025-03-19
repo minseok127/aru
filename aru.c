@@ -304,7 +304,7 @@ static void insert_node_and_execute(struct aru *aru, struct aru_node *node)
 {
 	struct aru_node *prev_head = NULL;
 	struct aru_tail_version *tail = NULL;
-	int tail_move_flag = 0;
+	int fetched_tail_move_flag = 0;
 
 	/*
 	 * To move the tail in a consistent direction, the flag must be acquired
@@ -314,7 +314,7 @@ static void insert_node_and_execute(struct aru *aru, struct aru_node *node)
 	 * be ignored because the obtained tail may be an old version if we don't
 	 * have the flag.
 	 */
-	tail_move_flag = atomic_fetch_or(&aru->tail_move_flag, 1);
+	fetched_tail_move_flag = atomic_fetch_or(&aru->tail_move_flag, 1);
 	__sync_synchronize();
 
 	node->next = NULL;
@@ -352,7 +352,7 @@ static void insert_node_and_execute(struct aru *aru, struct aru_node *node)
 
 	atomsnap_release_version((struct atomsnap_version *)tail);
 
-	if (tail_move_flag == 0) {
+	if (fetched_tail_move_flag == 0) {
 		atomic_store(&aru->tail_move_flag, 0);
 	}
 }
