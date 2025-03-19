@@ -9,8 +9,8 @@
 #include "aru.h"
 #include "atomsnap.h"
 
-#define ARU_NODE_TYPE_UPDATE	(0)
-#define ARU_NODE_TYPE_READ		(1)
+#define ARU_NODE_TYPE_UPDATE (0)
+#define ARU_NODE_TYPE_READ (1)
 
 /*
  * aru_node - Linked list node containing the user's function
