@@ -193,9 +193,9 @@ void aru_destroy(struct aru *aru)
  * @aru: pointer of the aru
  * @new_tail: the aru_node that will become the new tail
  *
- * Calling atomsnap_exchange_version() in this function starts the grace period
- * for the previous tail version. The last thread to release this old tail
- * version will execute aru_tail_version_free().
+ * Calling atomsnap_compare_exchange_version() in this function starts the grace
+ * period for the previous tail version. The last thread to release this old
+ * tail version will execute aru_tail_version_free().
  *
  * The reference to the old tail version is released after this function
  * returns. This ensures that the deallocation ffor this old version will not be
