@@ -127,7 +127,7 @@ free_tail_nodes:
 	}
 	free(tail_version->head_node);
 
-	next_tail_version = atomic_load(&tail_version->tail_version_next);
+	next_tail_version = tail_version->tail_version_next;
 	prev_ptr = (struct aru_tail_version *)atomic_load(
 		&next_tail_version->tail_version_prev);
 
