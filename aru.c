@@ -41,13 +41,30 @@ struct aru_node {
 };
 
 /*
- * aru_tail_version - 
+ * aru_tail_version - Data structure to cover the lifetime of the nodes.
+ * @version: atomsnap_version to manage grace-period
+ * @tail_version_prev: previously created tail version
+ * @tail_version_next: next tail version
+ * @head_node: most recent node covered the lifetime by this tail verison
+ * @tail_node: oldest node covered the lifetime by this tail version
  *
+ * aru_nodes are managed as a linked list, and the tail of the list is managed
+ * in an RCU-like manner. This means that when moving the tail, intermediate
+ * nodes are not immediately freed but are given a grace period, which is
+ * managed using the atomsnap library.
+ *
+ * When the tail is updated, a range of nodes covering the lifetime of the
+ * previous tail is created. If this range is at the end of the linked list, it
+ * indicates that other threads no longer traverse this range of nodes.
+ *
+ * To verify this, each tail version is also linked via a pointer, and
+ * this pointer is used to determine whether the current version represents the
+ * last segment of the linked list.
  */
 struct aru_tail_version {
 	struct atomsnap_version version;
-	struct aru_tail *tail_version_prev;
-	struct aru_tail *tail_version_next;
+	struct aru_tail_version *tail_version_prev;
+	struct aru_tail_version *tail_version_next;
 	struct aru_node *head_node;
 	struct aru_node *tail_node;
 };
@@ -82,7 +99,7 @@ struct atomsnap_version *aru_tail_version_alloc(
 	return (struct atomsnap_version *)tail_version;
 }
 
-/* See the comment of the adjust_tail() */
+/* See the comment of the struct aru_tail_version and adjust_tail() */
 #define TAIL_VERSION_RELEASE_MASK (0x8000000000000000ULL)
 void aru_tail_version_free(struct atomsnap_version *version)
 {
@@ -91,7 +108,8 @@ void aru_tail_version_free(struct atomsnap_version *version)
 	uint64_t prev_ptr = atomic_fetch_or(
 		tail_version->tail_version_prev, TAIL_VERSION_RELEASE_MASK);
 	struct aru_node *node = NULL;	
-		
+
+	/* This is not the end of linke list, so we cannot free the nodes */
 	if (prev_ptr != 0) {
 		return;
 	}
@@ -100,7 +118,7 @@ void aru_tail_version_free(struct atomsnap_version *version)
 
 free_tail_nodes:
 
-	/* This range is the last. So we can free these safely. */
+	/* This range was the last. So we can free these safely. */
 	node = tail_version->tail_node;
 	while (node != tail_version->head_node) {
 		node = node->next;
@@ -161,11 +179,18 @@ void aru_destroy(struct aru *aru)
 }
 
 /*
- * adjust_tail -
- * @aru:
- * @new_tail:
+ * adjust_tail - Move the tail
+ * @aru: pointer of the aru
+ * @new_tail: the aru_node that will become the new tail
  *
+ * Calling atomsnap_exchange_version() in this function starts the grace period
+ * for the previous tail version. The last thread to release this old tail
+ * version will execute aru_tail_version_free().
  *
+ * The reference to the old tail version is released after this function
+ * returns. This ensures that the deallocation ffor this old version will not be
+ * executed until at least that point. So it is safe to link the old version
+ * with the newly created version.
  */
 static void adjust_tail(struct aru *aru,
 	struct aru_tail_version *prev_tail_version, struct aru_node *new_tail_node)
@@ -189,10 +214,18 @@ static void adjust_tail(struct aru *aru,
 #define TRY_NEXT (0)
 #define BREAK (1)
 /*
- * execute_node -
- * @node:
- * @tail_node: 
+ * execute_node - try to execute the callback function of the node
+ * @node: pointer of the node
+ * @tail_node: the node corresponding to the tail version
  *
+ * If this node contains an update function that requires exclusive execution,
+ * it checks whether the all previous nodes have completed or not. If it
+ * represents a read function, it checks whether the all previous update
+ * functions have completed or not.
+ *
+ * If we can execute this node's callback function, attempt to acquire the
+ * spinlock for the node. If successful, execute it. If we failed, return a
+ * value indicating to proceed to the next node.
  *
  * Returns TRY_NEXT or BREAK.
  */
@@ -241,12 +274,22 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
 }
 
 /*
- * execute_nodes_and_adjust_tail - 
- * @aru:
- * @tail:
- * @tail_move_flag:
- * @inserted_node:
+ * execute_nodes_and_adjust_tail - try to execute nodes and adjust tail
+ * @aru: pointer of the aru
+ * @tail_version: the tail version referenced by this function
+ * @tail_move_flag: if 0, we are allowed to move the tail
+ * @inserted_node: pointer to the node inserted by the caller
  *
+ * Traverse from the tail to the most recent node, attempting to execute
+ * callback functions. Since node insertion is lock-free, the next pointer may
+ * temporarily appear as null.
+ *
+ * If the noe was inserted before the current execution flow's inserted node,
+ * its next pointer will be set soon, so wait for it. Otherwise, if the node is
+ * likely the most recent one, terminate immediately.
+ *
+ * We ensure that aru-head never becomes null. So when traversing nodes, track
+ * the previous node and use it to update the tail.
  */
 static void execute_nodes_and_adjust_tail(struct aru *aru, 
 	struct aru_tail_version *tail_version, int tail_move_flag,
