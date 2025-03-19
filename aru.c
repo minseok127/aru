@@ -352,7 +352,7 @@ static void insert_node_and_execute(struct aru *aru, struct aru_node *node)
 {
 	struct aru_node *prev_head = NULL;
 	struct aru_tail_version *tail = NULL;
-	int fetched_tail_move_flag = 0;
+	int fetched_tail_move_flag = 1;
 
 	/*
 	 * To move the tail in a consistent direction, the flag must be acquired
@@ -362,7 +362,10 @@ static void insert_node_and_execute(struct aru *aru, struct aru_node *node)
 	 * be ignored because the obtained tail may be an old version if we don't
 	 * have the flag.
 	 */
-	fetched_tail_move_flag = atomic_fetch_or(&aru->tail_move_flag, 1);
+	if (aru->tail_move_flag == 0) {
+		fetched_tail_move_flag = atomic_fetch_or(&aru->tail_move_flag, 1);
+	}
+
 	__sync_synchronize();
 
 	node->next = NULL;
