@@ -136,7 +136,7 @@ free_tail_nodes:
 	prev_ptr = (struct aru_tail_version *)atomic_load(
 		&next_tail_version->tail_version_prev);
 
-	if (((uintptr_t)prev_ptr & TAIL_VERSION_RELEASE_MASK) != 0) {
+	if (((uint64_t)prev_ptr & TAIL_VERSION_RELEASE_MASK) != 0) {
 		tail_version = next_tail_version;
 		goto free_tail_nodes;
 	} else if (!atomic_compare_exchange_weak(
