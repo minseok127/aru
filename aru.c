@@ -491,3 +491,27 @@ void aru_read(struct aru *aru, aru_tag *tag,
 
 	insert_node_and_execute(aru, node);
 }
+
+/*
+ * aru_sync - Sync API provided to the user
+ * @aru: pointer of the aru
+ *
+ * Explicitly execute the callback function for the given aru in the current
+ * thread. For example, if the number of threads executing aru's callback
+ * functions is lower than the number of read functions, this can be used to
+ * improve read function throughput.
+ */
+void aru_sync(struct aru *aru)
+{
+	struct aru_tail_version *tail = NULL;
+
+	tail = (struct aru_tail_version *)atomsnap_acquire_version(aru->tail);
+
+	/*
+	 * This function does not insert a new node. Therefore, provide the tail
+	 * node to avoid unnecessary waiting during the traversal.
+	 */
+	execute_nodes_and_adjust_tail(aru, tail, tail->tail_node);
+
+	atomsnap_release_version((struct atomsnap_version *)tail);
+}

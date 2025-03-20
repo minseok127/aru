@@ -60,6 +60,17 @@ void aru_update(struct aru *aru, aru_tag *tag,
 void aru_read(struct aru *aru, aru_tag *tag,
 	void (*read)(void *args), void *args);
 
+/*
+ * aru_sync - Sync API provided to the user
+ * @aru: pointer of the aru
+ *
+ * Explicitly execute the callback function for the given aru in the current
+ * thread. For example, if the number of threads executing aru's callback
+ * functions is lower than the number of read functions, this can be used to
+ * improve read function throughput.
+ */
+void aru_sync(struct aru *aru);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -206,6 +206,7 @@ void readThreadFunc_allBooks()
             allDone = true;
             for (int i = 0; i < g_numBooks; i++) {
                 if (tags[i] != ARU_TAG_DONE) {
+					aru_sync(g_books[i].book_aru);
                     allDone = false;
                     break;
                 }
