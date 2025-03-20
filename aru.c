@@ -248,31 +248,33 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
 {
 	struct aru_node *prev_node = node->prev;
 
-	if (node->type == ARU_NODE_TYPE_UPDATE) {
-		while (prev_node != NULL && prev_node != tail_node) {
-			if (prev_node->tag != ARU_TAG_DONE) {
-				return BREAK;
+	if (node != tail_node) {
+		if (node->type == ARU_NODE_TYPE_UPDATE) {
+			while (prev_node != NULL && prev_node != tail_node) {
+				if (prev_node->tag != ARU_TAG_DONE) {
+					return BREAK;
+				}
+
+				prev_node = prev_node->prev;
 			}
 
-			prev_node = prev_node->prev;
-		}
-
-		if (tail_node->tag != ARU_TAG_DONE) {
-			return BREAK;
-		}
-	} else {
-		while (prev_node != NULL && prev_node != tail_node) {
-			if (prev_node->type == ARU_NODE_TYPE_UPDATE &&
-					prev_node->tag != ARU_TAG_DONE) {
+			if (tail_node->tag != ARU_TAG_DONE) {
 				return BREAK;
 			}
+		} else {
+			while (prev_node != NULL && prev_node != tail_node) {
+				if (prev_node->type == ARU_NODE_TYPE_UPDATE &&
+						prev_node->tag != ARU_TAG_DONE) {
+					return BREAK;
+				}
 
-			prev_node = prev_node->prev;
-		}
+				prev_node = prev_node->prev;
+			}
 
-		if (tail_node->type == ARU_NODE_TYPE_UPDATE &&
-				tail_node->tag != ARU_TAG_DONE) {
-			return BREAK;
+			if (tail_node->type == ARU_NODE_TYPE_UPDATE &&
+					tail_node->tag != ARU_TAG_DONE) {
+				return BREAK;
+			}
 		}
 	}
 
@@ -318,6 +320,14 @@ static void execute_nodes_and_adjust_tail(struct aru *aru,
 			break;
 		}
 
+		/*
+		 * From this point, it is not guaranteed that the node's next
+		 * pointer will be set soon.
+		 */
+		if (node == inserted_node) {
+			after_inserted_node = true;
+		}
+
 		if (after_inserted_node) {
 			prev_node = node;
 			node = node->next;
@@ -332,14 +342,6 @@ static void execute_nodes_and_adjust_tail(struct aru *aru,
 
 			prev_node = node;
 			node = node->next;
-
-			/*
-			 * From this point, it is not guaranteed that the node's next
-			 * pointer will be set soon.
-			 */
-			if (node == inserted_node) {
-				after_inserted_node = true;
-			}
 		}
 	}
 
