@@ -491,4 +491,3 @@ void aru_read(struct aru *aru, aru_tag *tag,
 
 	insert_node_and_execute(aru, node);
 }
-
