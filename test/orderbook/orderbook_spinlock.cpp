@@ -16,6 +16,8 @@
 struct Book {
     std::map<std::string, std::string> bids;
     std::map<std::string, std::string> asks;
+
+	pthread_spinlock_t spinlock;
 };
 
 // 전역 N개 오더북
@@ -36,8 +38,6 @@ static const int fixedPrices[20] = {
     19500, 19550, 19600, 19650, 19700,
     19750, 19800, 19850, 19900, 19950
 };
-
-pthread_spinlock_t spinlock;
 
 // ---------------------------------------------------
 // generate JSON for a single random book_id
@@ -82,12 +82,11 @@ void updateOrderbookCallback(void* args)
     char* clonedJson = static_cast<char*>(args);
     g_updateCount.fetch_add(1, std::memory_order_relaxed);
 
-	pthread_spin_lock(&spinlock);
-
     try {
         nlohmann::json j = nlohmann::json::parse(clonedJson);
         int book_id = j["book_id"].get<int>();
 
+		pthread_spin_lock(&g_books[book_id].spinlock);
         // 매수
         if (j.contains("b")) {
             for (auto& bid : j["b"]) {
@@ -104,10 +103,10 @@ void updateOrderbookCallback(void* args)
                 g_books[book_id].asks[price] = qty;
             }
         }
+		pthread_spin_unlock(&g_books[book_id].spinlock);
     } catch (...) {
         // parse error
     }
-	pthread_spin_unlock(&spinlock);
 
     free(clonedJson);
 	//std::cout << "update done" << std::endl;
@@ -128,8 +127,7 @@ void readBookCallback(void* args)
     double referenceQty = -1.0;
     bool firstFound = false;
 
-	pthread_spin_lock(&spinlock);
-
+	pthread_spin_lock(&g_books[book_id].spinlock);
     for (auto &kv : g_books[book_id].bids) {
         double d = std::stod(kv.second);
         if (!firstFound) {
@@ -157,7 +155,7 @@ void readBookCallback(void* args)
             }
         }
     }
-	pthread_spin_unlock(&spinlock);
+	pthread_spin_unlock(&g_books[book_id].spinlock);
 	//std::cout << "read done@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << std::endl;
     // if empty, skip. if all same => OK
 }
@@ -222,11 +220,13 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-	pthread_spin_init(&spinlock, PTHREAD_PROCESS_PRIVATE);
 
     // 1) g_books 초기화
     g_books.resize(g_numBooks);
-
+	for (int i = 0; i < g_numBooks; i++) {
+		pthread_spin_init(&g_books[i].spinlock, PTHREAD_PROCESS_PRIVATE);
+	}
+	
     // 3) 스레드 생성
     std::vector<std::thread> threads;
     threads.reserve(updateThreads + readThreads);
