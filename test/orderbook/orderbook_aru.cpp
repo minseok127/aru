@@ -36,6 +36,7 @@ static std::atomic<bool> g_running(true);
 static std::atomic<int> g_updateCount(0);
 static std::atomic<int> g_updateCount2(0);
 static std::atomic<int> g_readCount(0);
+static std::atomic<int> g_readCount2(0);
 
 // 고정 가격 20개
 static const int fixedPrices[20] = {
@@ -79,12 +80,13 @@ std::string generateOrderbookJson_forOneBook(int book_id, std::mt19937 &rng)
 void updateBookCallback(void* args)
 {
     char* clonedJson = static_cast<char*>(args);
-    g_updateCount.fetch_add(1, std::memory_order_relaxed);
 
-	if (!g_running.load(std::memory_order_relaxed)) {
-		g_updateCount2.fetch_add(1, std::memory_order_relaxed);
-		std::cout << g_updateCount.load() - g_updateCount2.load() << std::endl;
-	}
+    if (!g_running.load(std::memory_order_relaxed)) {
+        g_updateCount2.fetch_add(1, std::memory_order_relaxed);
+	std::cout << g_updateCount.load() - g_updateCount2.load() << std::endl;
+    } else {
+	g_updateCount.fetch_add(1, std::memory_order_relaxed);
+    }
 
     try {
         nlohmann::json j = nlohmann::json::parse(clonedJson);
@@ -120,7 +122,12 @@ void updateBookCallback(void* args)
 // ---------------------------------------------------
 void readBookCallback(void* args)
 {
-    g_readCount.fetch_add(1, std::memory_order_relaxed);
+    if (!g_running.load(std::memory_order_relaxed)) {
+        g_readCount2.fetch_add(1, std::memory_order_relaxed);
+	std::cout << g_readCount.load() - g_readCount2.load() << std::endl;
+    } else {
+	g_readCount.fetch_add(1, std::memory_order_relaxed);
+    }
 
     // args = book_id
     int book_id = reinterpret_cast<intptr_t>(args);
@@ -196,14 +203,15 @@ void readThreadFunc_allBooks()
 {
     while (g_running.load(std::memory_order_relaxed)) {
         // 태그 배열
-        std::vector<aru_tag> tags(g_numBooks, ARU_TAG_PENDING);
+        //std::vector<aru_tag> tags(g_numBooks, ARU_TAG_PENDING);
 
         // 1) 모든 book에 대해 read 요청
         for (int i = 0; i < g_numBooks; i++) {
             // args: book_id
             void* bookIdPtr = reinterpret_cast<void*>(static_cast<intptr_t>(i));
             aru* myAru = g_books[i].book_aru;
-            aru_read(myAru, &tags[i], readBookCallback, bookIdPtr);
+            //aru_read(myAru, &tags[i], readBookCallback, bookIdPtr);
+	    aru_read(myAru, NULL, readBookCallback, bookIdPtr);
         }
 
 #if 0
