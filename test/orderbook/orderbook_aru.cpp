@@ -206,6 +206,7 @@ void readThreadFunc_allBooks()
             aru_read(myAru, &tags[i], readBookCallback, bookIdPtr);
         }
 
+#if 0
         // 2) 태그가 모두 DONE인지 polling
         bool allDone = false;
         while (!allDone && g_running.load(std::memory_order_relaxed)) {
@@ -219,6 +220,7 @@ void readThreadFunc_allBooks()
             }
             // 1ms sleep 제거 -> 바로 재확인 가능
         }
+#endif
     }
 }
 
