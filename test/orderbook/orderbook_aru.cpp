@@ -81,11 +81,9 @@ void updateBookCallback(void* args)
 {
     char* clonedJson = static_cast<char*>(args);
 
+    g_updateCount.fetch_add(1, std::memory_order_relaxed);
     if (!g_running.load(std::memory_order_relaxed)) {
-        g_updateCount2.fetch_add(1, std::memory_order_relaxed);
-	std::cout << g_updateCount.load() - g_updateCount2.load() << std::endl;
-    } else {
-	g_updateCount.fetch_add(1, std::memory_order_relaxed);
+	std::cout << g_updateCount2.load() - g_updateCount.load() << std::endl;
     }
 
     try {
@@ -122,11 +120,9 @@ void updateBookCallback(void* args)
 // ---------------------------------------------------
 void readBookCallback(void* args)
 {
+    g_readCount.fetch_add(1, std::memory_order_relaxed);
     if (!g_running.load(std::memory_order_relaxed)) {
-        g_readCount2.fetch_add(1, std::memory_order_relaxed);
 	std::cout << g_readCount.load() - g_readCount2.load() << std::endl;
-    } else {
-	g_readCount.fetch_add(1, std::memory_order_relaxed);
     }
 
     // args = book_id
@@ -189,6 +185,7 @@ void updateThreadFunc()
         aru* myAru = g_books[book_id].book_aru;
         // tag = nullptr
         aru_update(myAru, nullptr, updateBookCallback, cloned);
+	g_updateCount2.fetch_add(1, std::memory_order_relaxed);
 
         // CPU 부담 낮추기 위해 잠깐 sleep할 수 있음
         //std::this_thread::sleep_for(std::chrono::microseconds(1));
@@ -212,6 +209,7 @@ void readThreadFunc_allBooks()
             aru* myAru = g_books[i].book_aru;
             //aru_read(myAru, &tags[i], readBookCallback, bookIdPtr);
 	    aru_read(myAru, NULL, readBookCallback, bookIdPtr);
+	    g_readCount2.fetch_add(1, std::memory_order_relaxed);
         }
 
 #if 0
