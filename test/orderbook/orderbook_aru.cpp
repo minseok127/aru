@@ -271,6 +271,10 @@ int main(int argc, char* argv[])
 
     g_running.store(false, std::memory_order_relaxed);
 
+	// 4) join
+    for (auto &th : threads) {
+        th.join();
+    }	
     auto endTime = std::chrono::steady_clock::now();
     double elapsedSec = std::chrono::duration<double>(endTime - startTime).count();
 
@@ -278,6 +282,11 @@ int main(int argc, char* argv[])
     std::cout << "Update callbacks: " << g_updateCount.load() << "\n";
     std::cout << "Read callbacks:   " << g_readCount.load() << "\n";
     std::cout << "Elapsed time:     " << elapsedSec << " sec\n";
+
+	// 6) aru_destroy
+    for (int i = 0; i < g_numBooks; i++) {
+        aru_destroy(g_books[i].book_aru);
+    }
 
     return 0;
 }
