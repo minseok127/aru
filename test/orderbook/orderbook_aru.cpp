@@ -106,7 +106,7 @@ void updateBookCallback(void* args)
 
     free(clonedJson);
 
-	std::cout << "update done" << std::endl;
+	//std::cout << "update done" << std::endl;
 }
 
 // ---------------------------------------------------
@@ -151,7 +151,7 @@ void readBookCallback(void* args)
         }
     }
 
-	std::cout << "read done@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << std::endl;
+	//std::cout << "read done@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << std::endl;
 }
 
 // ---------------------------------------------------
@@ -178,7 +178,7 @@ void updateThreadFunc()
         aru_update(myAru, nullptr, updateBookCallback, cloned);
 
         // CPU 부담 낮추기 위해 잠깐 sleep할 수 있음
-        std::this_thread::sleep_for(std::chrono::microseconds(1));
+        //std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
 }
 

@@ -110,7 +110,7 @@ void updateOrderbookCallback(void* args)
 	pthread_spin_unlock(&spinlock);
 
     free(clonedJson);
-	std::cout << "update done" << std::endl;
+	//std::cout << "update done" << std::endl;
 }
 
 // ---------------------------------------------------
@@ -158,7 +158,7 @@ void readBookCallback(void* args)
         }
     }
 	pthread_spin_unlock(&spinlock);
-	std::cout << "read done@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << std::endl;
+	//std::cout << "read done@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" << std::endl;
     // if empty, skip. if all same => OK
 }
 
@@ -180,7 +180,7 @@ void updateThreadFunc(void *)
 
         updateOrderbookCallback(cloned);
         // optional sleep to reduce CPU
-        std::this_thread::sleep_for(std::chrono::microseconds(1));
+        //std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
 }
 
