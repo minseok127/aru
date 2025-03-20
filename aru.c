@@ -36,7 +36,7 @@ struct aru_node {
 	struct aru_node *prev;
 	struct aru_node *next;
 	aru_tag *user_tag_ptr;
-	aru_tag tag;
+	_Atomic aru_tag tag;
 	pthread_spinlock_t lock;
 	int type;
 };
@@ -251,20 +251,20 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
 	if (node != tail_node) {
 		if (node->type == ARU_NODE_TYPE_UPDATE) {
 			while (prev_node != NULL && prev_node != tail_node) {
-				if (prev_node->tag != ARU_TAG_DONE) {
+				if (atomic_load(&prev_node->tag) != ARU_TAG_DONE) {
 					return BREAK;
 				}
 
 				prev_node = prev_node->prev;
 			}
 
-			if (tail_node->tag != ARU_TAG_DONE) {
+			if (atomic_load(&tail_node->tag) != ARU_TAG_DONE) {
 				return BREAK;
 			}
 		} else {
 			while (prev_node != NULL && prev_node != tail_node) {
 				if (prev_node->type == ARU_NODE_TYPE_UPDATE &&
-						prev_node->tag != ARU_TAG_DONE) {
+						atomic_load(&prev_node->tag) != ARU_TAG_DONE) {
 					return BREAK;
 				}
 
@@ -272,7 +272,7 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
 			}
 
 			if (tail_node->type == ARU_NODE_TYPE_UPDATE &&
-					tail_node->tag != ARU_TAG_DONE) {
+					atomic_load(&tail_node->tag) != ARU_TAG_DONE) {
 				return BREAK;
 			}
 		}
@@ -280,10 +280,10 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
 
 	if (pthread_spin_trylock(&node->lock) == 0) {
 		node->callback(node->args);
-		node->tag = ARU_TAG_DONE;
+		atomic_store(&node->tag, ARU_TAG_DONE);
 
 		if (node->user_tag_ptr != NULL) {
-			*node->user_tag_ptr = ARU_TAG_DONE;
+			atomic_store(node->user_tag_ptr, ARU_TAG_DONE);
 		}
 	}
 
@@ -315,7 +315,7 @@ static void execute_nodes_and_adjust_tail(struct aru *aru,
 	bool after_inserted_node = false;
 
 	while (node != NULL) {
-		if (node->tag == ARU_TAG_PENDING &&
+		if (atomic_load(&node->tag) == ARU_TAG_PENDING &&
 				execute_node(node, tail_version->tail_node) == BREAK) {
 			break;
 		}
@@ -348,12 +348,12 @@ static void execute_nodes_and_adjust_tail(struct aru *aru,
 	if (prev_node != tail_version->tail_node) {
 		node = prev_node->prev;
 		while (node != tail_version->tail_node) {
-			if (node->tag != ARU_TAG_DONE) {
+			if (atomic_load(&node->tag) != ARU_TAG_DONE) {
 				return;
 			}
 			node = node->prev;
 		}
-		if (node->tag != ARU_TAG_DONE) {
+		if (atomic_load(&node->tag) != ARU_TAG_DONE) {
 			return;
 		}
 

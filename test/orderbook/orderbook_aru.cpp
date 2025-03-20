@@ -34,6 +34,7 @@ static std::atomic<bool> g_running(true);
 
 // 통계 카운터
 static std::atomic<int> g_updateCount(0);
+static std::atomic<int> g_updateCount2(0);
 static std::atomic<int> g_readCount(0);
 
 // 고정 가격 20개
@@ -79,6 +80,11 @@ void updateBookCallback(void* args)
 {
     char* clonedJson = static_cast<char*>(args);
     g_updateCount.fetch_add(1, std::memory_order_relaxed);
+
+	if (!g_running.load(std::memory_order_relaxed)) {
+		g_updateCount2.fetch_add(1, std::memory_order_relaxed);
+		std::cout << g_updateCount.load() - g_updateCount2.load() << std::endl;
+	}
 
     try {
         nlohmann::json j = nlohmann::json::parse(clonedJson);
