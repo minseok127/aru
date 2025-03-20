@@ -346,10 +346,18 @@ static void execute_nodes_and_adjust_tail(struct aru *aru,
 	}
 
 	if (prev_node != tail_version->tail_node) {
+		while (prev_node->prev == NULL) {
+			__asm__ __volatile__("pause");
+		}
 		node = prev_node->prev;
+
 		while (node != tail_version->tail_node) {
 			if (atomic_load(&node->tag) != ARU_TAG_DONE) {
 				return;
+			}
+
+			while (node->prev == NULL) {
+				__asm__ __volatile__("pause");
 			}
 			node = node->prev;
 		}
