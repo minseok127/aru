@@ -83,7 +83,7 @@ void updateBookCallback(void* args)
 
     g_updateCount.fetch_add(1, std::memory_order_relaxed);
     if (!g_running.load(std::memory_order_relaxed)) {
-	std::cout << g_updateCount2.load() - g_updateCount.load() << std::endl;
+	std::cout << "upadate: " << g_updateCount2.load() - g_updateCount.load() << std::endl;
     }
 
     try {
@@ -122,7 +122,7 @@ void readBookCallback(void* args)
 {
     g_readCount.fetch_add(1, std::memory_order_relaxed);
     if (!g_running.load(std::memory_order_relaxed)) {
-	std::cout << g_readCount.load() - g_readCount2.load() << std::endl;
+	std::cout << "read: " << g_readCount2.load() - g_readCount.load() << std::endl;
     }
 
     // args = book_id
