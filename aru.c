@@ -246,7 +246,12 @@ static void adjust_tail(struct aru *aru,
  */
 static int execute_node(struct aru_node *node, struct aru_node *tail_node)
 {
-	struct aru_node *prev_node = node->prev;
+	struct aru_node *prev_node = NULL;
+
+	while (node->prev == NULL) {
+		__asm__ __volatile__("pause");
+	}
+	prev_node = node->prev;
 
 	if (node != tail_node) {
 		if (node->type == ARU_NODE_TYPE_UPDATE) {
@@ -255,6 +260,9 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
 					return BREAK;
 				}
 
+				while (prev_node->prev == NULL) {
+					__asm__ __volatile__("pause");
+				}
 				prev_node = prev_node->prev;
 			}
 
@@ -268,6 +276,9 @@ static int execute_node(struct aru_node *node, struct aru_node *tail_node)
 					return BREAK;
 				}
 
+				while (prev_node->prev == NULL) {
+					__asm__ __volatile__("pause");
+				}
 				prev_node = prev_node->prev;
 			}
 
