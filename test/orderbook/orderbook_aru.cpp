@@ -35,8 +35,11 @@ static std::atomic<bool> g_running(true);
 // 통계 카운터
 static std::atomic<int> g_updateCount(0);
 static std::atomic<int> g_updateCount2(0);
+static std::atomic<int> g_updateCount3(0);
 static std::atomic<int> g_readCount(0);
 static std::atomic<int> g_readCount2(0);
+static std::atomic<int> g_readCount3(0);
+
 
 // 고정 가격 20개
 static const int fixedPrices[20] = {
@@ -81,10 +84,14 @@ void updateBookCallback(void* args)
 {
     char* clonedJson = static_cast<char*>(args);
 
-    g_updateCount.fetch_add(1, std::memory_order_relaxed);
     if (!g_running.load(std::memory_order_relaxed)) {
-	std::cout << "upadate: " << g_updateCount2.load() - g_updateCount.load() << std::endl;
-    }
+		g_updateCount3.fetch_add(1, std::memory_order_relaxed);
+		std::cout << "upadate: "
+			<< g_updateCount2.load() - g_updateCount3.load() << std::endl;
+    } else {
+		g_updateCount.fetch_add(1, std::memory_order_relaxed);
+		g_updateCount3.fetch_add(1, std::memory_order_relaxed);
+	}
 
     try {
         nlohmann::json j = nlohmann::json::parse(clonedJson);
@@ -120,10 +127,14 @@ void updateBookCallback(void* args)
 // ---------------------------------------------------
 void readBookCallback(void* args)
 {
-    g_readCount.fetch_add(1, std::memory_order_relaxed);
     if (!g_running.load(std::memory_order_relaxed)) {
-	std::cout << "read: " << g_readCount2.load() - g_readCount.load() << std::endl;
-    }
+		g_readCount3.fetch_add(1, std::memory_order_relaxed);
+		std::cout << "read: " 
+			<< g_readCount2.load() - g_readCount3.load() << std::endl;
+    } else {
+		g_readCount.fetch_add(1, std::memory_order_relaxed);
+		g_readCount3.fetch_add(1, std::memory_order_relaxed);
+	}
 
     // args = book_id
     int book_id = reinterpret_cast<intptr_t>(args);
@@ -185,7 +196,7 @@ void updateThreadFunc()
         aru* myAru = g_books[book_id].book_aru;
         // tag = nullptr
         aru_update(myAru, nullptr, updateBookCallback, cloned);
-	g_updateCount2.fetch_add(1, std::memory_order_relaxed);
+		g_updateCount2.fetch_add(1, std::memory_order_relaxed);
 
         // CPU 부담 낮추기 위해 잠깐 sleep할 수 있음
         //std::this_thread::sleep_for(std::chrono::microseconds(1));
@@ -208,8 +219,8 @@ void readThreadFunc_allBooks()
             void* bookIdPtr = reinterpret_cast<void*>(static_cast<intptr_t>(i));
             aru* myAru = g_books[i].book_aru;
             //aru_read(myAru, &tags[i], readBookCallback, bookIdPtr);
-	    aru_read(myAru, NULL, readBookCallback, bookIdPtr);
-	    g_readCount2.fetch_add(1, std::memory_order_relaxed);
+			aru_read(myAru, NULL, readBookCallback, bookIdPtr);
+			g_readCount2.fetch_add(1, std::memory_order_relaxed);
         }
 
 #if 0
@@ -221,7 +232,7 @@ void readThreadFunc_allBooks()
                 if (tags[i] != ARU_TAG_DONE) {
 					aru_sync(g_books[i].book_aru);
                     allDone = false;
-                    break;
+                    continue;
                 }
             }
             // 1ms sleep 제거 -> 바로 재확인 가능
@@ -277,14 +288,20 @@ int main(int argc, char* argv[])
     auto startTime = std::chrono::steady_clock::now();
     std::this_thread::sleep_for(std::chrono::milliseconds((int)(runSeconds * 1000)));
 
+	// 5) 결과 출력
+	auto endTime = std::chrono::steady_clock::now();
+    double elapsedSec = std::chrono::duration<double>(endTime - startTime).count();
+    std::cout << "Update callbacks: " << g_updateCount.load() << "\n";
+    std::cout << "Read callbacks:   " << g_readCount.load() << "\n";
+    std::cout << "Elapsed time:     " << elapsedSec << " sec\n";
+	exit(1);
+
     g_running.store(false, std::memory_order_relaxed);
 
 	// 4) join
     for (auto &th : threads) {
         th.join();
     }	
-    auto endTime = std::chrono::steady_clock::now();
-    double elapsedSec = std::chrono::duration<double>(endTime - startTime).count();
 
     // 5) 결과 출력
     std::cout << "Update callbacks: " << g_updateCount.load() << "\n";
